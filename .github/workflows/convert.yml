@@ -1,0 +1,59 @@
+name: Convert URLs to Markdown
+
+on:
+  workflow_dispatch:
+    inputs:
+      papers:
+        description: 'JSON string: {"papers": ["url1", "url2", ...]}'
+        required: true
+        type: string
+      output_dir:
+        description: Output folder name for converted .md files
+        required: false
+        default: converted
+        type: string
+      openrouter_model:
+        description: OpenRouter vision model used as PDF last-resort fallback
+        required: false
+        default: openai/gpt-4o
+        type: string
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Pandoc
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y pandoc
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Convert URLs to Markdown
+        run: |
+          python url2md.py \
+            --papers '${{ inputs.papers }}' \
+            --output-dir '${{ inputs.output_dir }}' \
+            --model '${{ inputs.openrouter_model }}'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-markdown
+          path: |
+            ${{ inputs.output_dir }}.zip
+            result.json
+          if-no-files-found: warn
