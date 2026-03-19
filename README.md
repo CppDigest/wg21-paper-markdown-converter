@@ -137,14 +137,26 @@ Workflow: [`.github/workflows/convert.yml`](.github/workflows/convert.yml)
 |--------|---------|
 | `OPENROUTER_API_KEY` | PDF vision fallback (optional if docling/pdfplumber succeed) |
 
-### Artifacts
+### Artifacts (workflow upload)
 
-Each run uploads **`converted-markdown`** containing:
+After `url2md.py` writes **`<output_dir>.zip`** and **`result.json`**, the workflow uploads both files as one **GitHub Actions artifact** (step *Upload zip and result.json*):
 
-- `<output_dir>.zip`
-- `result.json`
+- **Artifact name:** `converted-markdown-run-<run_number>-<run_attempt>` (unique per run / retry).
+- **Contents:** `<output_dir>.zip` and `result.json` next to each other in the downloaded ZIP from the Actions UI.
+- **Retention:** 90 days (see `retention-days` in the workflow).
+- The upload step uses **`if: always()`** so you still get artifacts after partial conversion failures, when those files exist.
 
-Upload runs **`if: always()`** so you still get `result.json` after partial failures.
+**Workflow artifact vs release asset — which to use?**
+
+| | **Actions workflow artifact** (what this repo uses) | **Release** assets |
+|---|-----------------------------------------------------|---------------------|
+| **Best for** | CI outputs: “download the zip from this run” | Shipping a **versioned** build users expect to keep (e.g. v1.2.0 binaries) |
+| **Lifetime** | Limited retention (e.g. 90 days on free plans unless you change policy) | Tied to the release/tag; typically long-lived |
+| **Setup** | One `upload-artifact` step — no tag or release notes | Requires creating/editing a [Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases) and uploading assets (extra workflow steps) |
+
+For **on-demand conversion** triggered by `workflow_dispatch`, **workflow artifacts are the better default**: simple, no release noise, good enough for “grab this run’s zip.” Use **Releases** only if you need permanent, versioned downloads for end users.
+
+Local runs do **not** upload to GitHub; only the workflow does.
 
 ### Example (`gh` CLI)
 

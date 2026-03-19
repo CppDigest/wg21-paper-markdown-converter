@@ -39,6 +39,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      # Writes *.md under output_dir, then output_dir.zip and result.json in the workspace root.
       - name: Convert URLs to Markdown
         run: |
           python url2md.py \
@@ -48,12 +49,14 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
-      - name: Upload artifacts
+      # Runs after the step above (even if url2md exits non-zero) so result.json + zip are still uploaded when present.
+      - name: Upload zip and result.json (GitHub Actions artifact)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: converted-markdown
+          name: converted-markdown-run-${{ github.run_number }}-${{ github.run_attempt }}
           path: |
             ${{ inputs.output_dir }}.zip
             result.json
           if-no-files-found: warn
+          retention-days: 90

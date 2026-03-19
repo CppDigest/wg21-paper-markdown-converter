@@ -7,6 +7,11 @@ the output folder.
 
 Designed to be called by the GitHub Actions workflow_dispatch job, but
 also runnable locally.
+
+On GitHub Actions, after this script finishes, ``.github/workflows/convert.yml``
+uploads ``<output-dir>.zip`` and ``result.json`` as a single workflow artifact
+(see the "Upload zip and result.json" step). Local runs do not upload anywhere
+unless you add your own tooling.
 """
 
 import argparse
