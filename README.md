@@ -2,16 +2,16 @@
 
 Fetch a list of document URLs, convert each page to **Markdown**, and produce a **ZIP** of the `.md` files plus a **`result.json`** summary. Works for **HTML** pages and **PDF** files.
 
-Designed for **local runs** and for **GitHub Actions** (`workflow_dispatch`). By default, outputs are files on disk or workflow **artifacts**. Optionally, the workflow can **push** successful `.md` files and `result.json` to another GitHub repository using the **GitHub REST API** (no `git` push on the runner) when you set **`TARGET_REPO`** and **`TARGET_REPO_TOKEN`** (via workflow inputs and/or repository secrets).
+Designed for **local runs** and for **GitHub Actions** (`workflow_dispatch`). By default, outputs are files on disk or workflow **artifacts**. Optionally, the workflow can **push** successful `.md` files to another GitHub repository using the **GitHub REST API** (no `git` push on the runner) when you set **`TARGET_REPO`** and **`TARGET_REPO_TOKEN`** (via workflow inputs and/or repository secrets). **`result.json` is not pushed** to the destination repo (it remains in the workflow artifact only).
 
 ---
 
 ## Features
 
-| Input | Pipeline |
-|-------|----------|
+| Input             | Pipeline                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **HTML / `.htm`** | Fetch → preprocess (e.g. `<main>` body fix for committee-style HTML) → [Pandoc](https://pandoc.org/) (GFM) → post-process |
-| **PDF** | Download → **docling** → **pdfplumber** → **OpenRouter** vision (PDF pages as images), in that order |
+| **PDF**           | Download → **docling** → **pdfplumber** → **OpenRouter** vision (PDF pages as images), in that order                      |
 
 URL type is chosen from the path (`.pdf`) and, when needed, from `Content-Type` on a `HEAD` request.
 
@@ -40,9 +40,9 @@ markdown-converter/
 ## Prerequisites (local)
 
 - **Python 3.11+** recommended (matches CI).
-- **Pandoc** installed and on `PATH` (used by `html_converter`).  
-  - Windows: [Pandoc installers](https://pandoc.org/installing.html)  
-  - macOS: `brew install pandoc`  
+- **Pandoc** installed and on `PATH` (used by `html_converter`).
+  - Windows: [Pandoc installers](https://pandoc.org/installing.html)
+  - macOS: `brew install pandoc`
   - Ubuntu: `sudo apt install pandoc`
 - **OpenRouter API key** (optional but strongly recommended for hard PDFs): [openrouter.ai/keys](https://openrouter.ai/keys)
 
@@ -69,15 +69,15 @@ cp .env.example .env               # then edit OPENROUTER_API_KEY
 Pass a **JSON string** with a `papers` array of absolute URLs:
 
 ```json
-{"papers": ["https://example.com/doc.html", "https://example.com/paper.pdf"]}
+{ "papers": ["https://example.com/doc.html", "https://example.com/paper.pdf"] }
 ```
 
 ### CLI
 
 Quick test using public fixtures (HTML + **real multi-page PDF**):
 
-- **HTML:** [httpbin.org/html](https://httpbin.org/html) — short sample HTML page  
-- **PDF:** [Mozilla pdf.js sample (TraceMonkey PLDI ’09)](https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf) — full research paper PDF; good for checking docling / pdfplumber / OpenRouter on non-trivial text  
+- **HTML:** [httpbin.org/html](https://httpbin.org/html) — short sample HTML page
+- **PDF:** [Mozilla pdf.js sample (TraceMonkey PLDI ’09)](https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf) — full research paper PDF; good for checking docling / pdfplumber / OpenRouter on non-trivial text
 
 ```bash
 python url2md.py \
@@ -90,15 +90,15 @@ python url2md.py \
 
 The Mozilla sample above is **larger and slower** (good for realistic output); use the W3C dummy only for a fast smoke test.
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--papers` | *(required)* | JSON string: `{"papers": ["url", ...]}` |
-| `--output-dir` | `converted` | Directory for `.md` files |
-| `--model` | `openai/gpt-4o` or `OPENROUTER_MODEL` from env | OpenRouter model for PDF vision fallback |
+| Argument       | Default                                        | Description                              |
+| -------------- | ---------------------------------------------- | ---------------------------------------- |
+| `--papers`     | _(required)_                                   | JSON string: `{"papers": ["url", ...]}`  |
+| `--output-dir` | `converted`                                    | Directory for `.md` files                |
+| `--model`      | `openai/gpt-4o` or `OPENROUTER_MODEL` from env | OpenRouter model for PDF vision fallback |
 
 ### Exit code
 
-- `0` — every URL converted successfully  
+- `0` — every URL converted successfully
 - `1` — at least one failure (still writes `result.json` and zips the folder when possible)
 
 ---
@@ -121,6 +121,7 @@ After a run you get:
 ```
 
 - `message` is `convert finished with errors` if any URL failed.
+
 3. **`<output-dir>.zip`** — ZIP of the output folder (stdlib `zipfile`).
 
 ---
@@ -136,23 +137,23 @@ Workflow: [`.github/workflows/convert.yml`](.github/workflows/convert.yml)
 
 ### Workflow inputs (optional push)
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `target_repo` | *(empty)* | Destination `owner/repo`. If empty, the workflow uses secret **`TARGET_REPO`**. |
-| `target_path` | *(empty)* | Directory inside the destination repo (slashes allowed). If empty, uses secret **`TARGET_PATH`** (or repo root). |
-| `target_branch` | *(empty)* | Branch to update. If empty, uses secret **`TARGET_BRANCH`**, else **`main`**. The branch **must already exist**. |
+| Input           | Default   | Description                                                                                                      |
+| --------------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| `target_repo`   | _(empty)_ | Destination `owner/repo`. If empty, the workflow uses secret **`TARGET_REPO`**.                                  |
+| `target_path`   | _(empty)_ | Directory inside the destination repo (slashes allowed). If empty, uses secret **`TARGET_PATH`** (or repo root). |
+| `target_branch` | _(empty)_ | Branch to update. If empty, uses secret **`TARGET_BRANCH`**, else **`main`**. The branch **must already exist**. |
 
 Non-empty workflow inputs override the corresponding secrets.
 
 ### Repository secrets
 
-| Secret | Purpose |
-|--------|---------|
-| `OPENROUTER_API_KEY` | PDF vision fallback (optional if docling/pdfplumber succeed) |
-| `TARGET_REPO` | Default destination `owner/repo` when `target_repo` input is empty |
-| `TARGET_PATH` | Default path inside that repo when `target_path` input is empty |
-| `TARGET_BRANCH` | Default branch when `target_branch` input is empty (workflow still defaults to `main` if this secret is unset) |
-| `TARGET_REPO_TOKEN` | [PAT](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) for API push: classic token with **`repo`**, or fine-grained with **Contents: Read and write** on the destination repository. Never commit this token. |
+| Secret               | Purpose                                                                                                                                                                                                                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY` | PDF vision fallback (optional if docling/pdfplumber succeed)                                                                                                                                                                                                                      |
+| `TARGET_REPO`        | Default destination `owner/repo` when `target_repo` input is empty                                                                                                                                                                                                                |
+| `TARGET_PATH`        | Default path inside that repo when `target_path` input is empty                                                                                                                                                                                                                   |
+| `TARGET_BRANCH`      | Default branch when `target_branch` input is empty (workflow still defaults to `main` if this secret is unset)                                                                                                                                                                    |
+| `TARGET_REPO_TOKEN`  | [PAT](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) for API push: classic token with **`repo`**, or fine-grained with **Contents: Read and write** on the destination repository. Never commit this token. |
 
 If **`TARGET_REPO`** or **`TARGET_REPO_TOKEN`** is missing, the push step **skips** (exit 0). The token is read **only** from secrets, not from workflow inputs.
 
@@ -167,7 +168,7 @@ After the artifact upload step, **`push_via_github_api.py`** runs with **`if: al
 
 ### Artifacts (workflow upload)
 
-After `url2md.py` writes **`<output_dir>.zip`** and **`result.json`**, the workflow uploads both files as one **GitHub Actions artifact** (step *Upload zip and result.json*):
+After `url2md.py` writes **`<output_dir>.zip`** and **`result.json`**, the workflow uploads both files as one **GitHub Actions artifact** (step _Upload zip and result.json_):
 
 - **Artifact name:** `converted-markdown-run-<run_number>-<run_attempt>` (unique per run / retry).
 - **Contents:** `<output_dir>.zip` and `result.json` next to each other in the downloaded ZIP from the Actions UI.
@@ -176,11 +177,11 @@ After `url2md.py` writes **`<output_dir>.zip`** and **`result.json`**, the workf
 
 **Workflow artifact vs release asset — which to use?**
 
-| | **Actions workflow artifact** (what this repo uses) | **Release** assets |
-|---|-----------------------------------------------------|---------------------|
-| **Best for** | CI outputs: “download the zip from this run” | Shipping a **versioned** build users expect to keep (e.g. v1.2.0 binaries) |
-| **Lifetime** | Limited retention (e.g. 90 days on free plans unless you change policy) | Tied to the release/tag; typically long-lived |
-| **Setup** | One `upload-artifact` step — no tag or release notes | Requires creating/editing a [Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases) and uploading assets (extra workflow steps) |
+|              | **Actions workflow artifact** (what this repo uses)                     | **Release** assets                                                                                                                                                     |
+| ------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Best for** | CI outputs: “download the zip from this run”                            | Shipping a **versioned** build users expect to keep (e.g. v1.2.0 binaries)                                                                                             |
+| **Lifetime** | Limited retention (e.g. 90 days on free plans unless you change policy) | Tied to the release/tag; typically long-lived                                                                                                                          |
+| **Setup**    | One `upload-artifact` step — no tag or release notes                    | Requires creating/editing a [Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases) and uploading assets (extra workflow steps) |
 
 For **on-demand conversion** triggered by `workflow_dispatch`, **workflow artifacts are the better default**: simple, no release noise, good enough for “grab this run’s zip.” Use **Releases** only if you need permanent, versioned downloads for end users.
 
@@ -208,4 +209,3 @@ Omit `target_*` fields to rely on repository secrets **`TARGET_REPO`**, **`TARGE
 - **HEAD requests**: Some servers misbehave on `HEAD`; type detection then falls back to treating non-`.pdf` URLs as HTML.
 
 ---
-

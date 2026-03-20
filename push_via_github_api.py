@@ -1,7 +1,7 @@
 """
-Push successful conversion outputs to another GitHub repository via the REST API
-(Git blobs + tree + commit + ref update). Intended for GitHub Actions; reads
-configuration from environment variables.
+Push successful conversion .md files to another GitHub repository via the REST API
+(Git blobs + tree + commit + ref update). Uses result.json only to choose which
+URLs succeeded; result.json itself is not uploaded.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def _remote_file_path(prefix: str, filename: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Push successful .md files and result.json to a GitHub repo via API."
+        description="Push successful .md files to a GitHub repo via API (reads result.json to decide which)."
     )
     parser.add_argument(
         "--result-json",
@@ -123,12 +123,10 @@ def main() -> int:
             continue
         by_remote[_remote_file_path(prefix, name)] = local
 
-    by_remote[_remote_file_path(prefix, "result.json")] = result_path
     uploads = list(by_remote.items())
-
-    if len(uploads) == 1:
-        # only result.json
-        print("Warning: only result.json to push (no .md files found on disk).")
+    if not uploads:
+        print("Push skipped: no successful .md files on disk to upload.")
+        return 0
 
     session = requests.Session()
     base = f"/repos/{owner}/{repo}"

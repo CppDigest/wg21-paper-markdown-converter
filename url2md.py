@@ -33,6 +33,7 @@ load_dotenv()
 
 # ── URL type detection ────────────────────────────────────────────────────────
 
+
 def detect_type(url: str) -> str:
     """
     Return "pdf" or "html" based on URL path suffix first, then Content-Type
@@ -44,6 +45,7 @@ def detect_type(url: str) -> str:
 
     try:
         import requests
+
         head = requests.head(url, allow_redirects=True, timeout=15)
         ct = head.headers.get("Content-Type", "").lower()
         if "pdf" in ct:
@@ -56,6 +58,7 @@ def detect_type(url: str) -> str:
 
 # ── zip helper ────────────────────────────────────────────────────────────────
 
+
 def zip_folder(folder: Path, zip_path: Path) -> None:
     """Zip all files inside *folder* into *zip_path*."""
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -66,6 +69,7 @@ def zip_folder(folder: Path, zip_path: Path) -> None:
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -96,7 +100,10 @@ def main() -> int:
             raise ValueError("'papers' must be a non-empty list of URLs")
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         print(f"ERROR: Invalid --papers value: {e}", file=sys.stderr)
-        print('Expected format: --papers \'{"papers": ["url1", "url2"]}\'', file=sys.stderr)
+        print(
+            'Expected format: --papers \'{"papers": ["url1", "url2"]}\'',
+            file=sys.stderr,
+        )
         return 1
 
     output_dir = Path(args.output_dir)
@@ -104,7 +111,9 @@ def main() -> int:
 
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
     if not openrouter_api_key:
-        print("Warning: OPENROUTER_API_KEY not set — OpenRouter PDF fallback will be skipped")
+        print(
+            "Warning: OPENROUTER_API_KEY not set — OpenRouter PDF fallback will be skipped"
+        )
 
     # ── convert each URL ──────────────────────────────────────────────────────
     results: list[dict] = []
@@ -139,11 +148,18 @@ def main() -> int:
 
     # ── write result.json ─────────────────────────────────────────────────────
     all_ok = all(r["status"] == "success" for r in results)
-    message = "convert finished successfully" if all_ok else "convert finished with errors"
+    message = (
+        "convert finished successfully"
+        if all_ok
+        else "convert finished with errors"
+    )
 
     result_payload = {"message": message, "result": results}
     result_path = Path("result.json")
-    result_path.write_text(json.dumps(result_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    result_path.write_text(
+        json.dumps(result_payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     print(f"\nWrote {result_path}")
 
     # ── zip output folder ─────────────────────────────────────────────────────
