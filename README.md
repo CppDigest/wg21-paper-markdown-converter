@@ -2,7 +2,7 @@
 
 Fetch a list of document URLs, convert each page to **Markdown**, and produce a **ZIP** of the `.md` files plus a **`result.json`** summary. Works for **HTML** pages and **PDF** files.
 
-Designed for **local runs** and for **GitHub Actions** (`workflow_dispatch`). **Nothing is pushed to Git** — outputs are files on disk or workflow **artifacts**.
+Designed for **local runs** and for **GitHub Actions** (`workflow_dispatch`). By default, outputs are files on disk or workflow **artifacts**. Optionally, the workflow can **push** successful `.md` files and `result.json` to another GitHub repository using the **GitHub REST API** (no `git` push on the runner) when you set **`TARGET_REPO`** and **`TARGET_REPO_TOKEN`** (via workflow inputs and/or repository secrets).
 
 ---
 
@@ -23,14 +23,16 @@ Output filenames come from the URL path stem (e.g. `.../report.pdf` → `report.
 
 ```
 markdown-converter/
-├── url2md.py              # CLI entry point
-├── html_converter.py      # HTML → Markdown
-├── pdf_converter.py       # PDF → Markdown (docling → pdfplumber → OpenRouter)
+├── url2md.py                 # CLI entry point
+├── push_via_github_api.py    # Optional: push successes to another repo (CI)
+├── output_naming.py          # Shared URL → .md filename (url2md + push script)
+├── html_converter.py         # HTML → Markdown
+├── pdf_converter.py          # PDF → Markdown (docling → pdfplumber → OpenRouter)
 ├── requirements.txt
-├── .env.example           # Copy to .env for local secrets
+├── .env.example              # Copy to .env for local secrets
 ├── README.md
 └── .github/workflows/
-    └── convert.yml        # Manual workflow + artifact upload
+    └── convert.yml           # Manual workflow + artifact + optional API push
 ```
 
 ---
@@ -130,12 +132,38 @@ Workflow: [`.github/workflows/convert.yml`](.github/workflows/convert.yml)
 1. **Actions** → **Convert URLs to Markdown** → **Run workflow**
 2. Fill **`papers`** with the same JSON string as `--papers` (one line).
 3. Optionally change **`output_dir`** or **`openrouter_model`**.
+4. Optionally set **`target_repo`**, **`target_path`**, and **`target_branch`** for API push (see below).
 
-### Repository secret
+### Workflow inputs (optional push)
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `target_repo` | *(empty)* | Destination `owner/repo`. If empty, the workflow uses secret **`TARGET_REPO`**. |
+| `target_path` | *(empty)* | Directory inside the destination repo (slashes allowed). If empty, uses secret **`TARGET_PATH`** (or repo root). |
+| `target_branch` | *(empty)* | Branch to update. If empty, uses secret **`TARGET_BRANCH`**, else **`main`**. The branch **must already exist**. |
+
+Non-empty workflow inputs override the corresponding secrets.
+
+### Repository secrets
 
 | Secret | Purpose |
 |--------|---------|
 | `OPENROUTER_API_KEY` | PDF vision fallback (optional if docling/pdfplumber succeed) |
+| `TARGET_REPO` | Default destination `owner/repo` when `target_repo` input is empty |
+| `TARGET_PATH` | Default path inside that repo when `target_path` input is empty |
+| `TARGET_BRANCH` | Default branch when `target_branch` input is empty (workflow still defaults to `main` if this secret is unset) |
+| `TARGET_REPO_TOKEN` | [PAT](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) for API push: classic token with **`repo`**, or fine-grained with **Contents: Read and write** on the destination repository. Never commit this token. |
+
+If **`TARGET_REPO`** or **`TARGET_REPO_TOKEN`** is missing, the push step **skips** (exit 0). The token is read **only** from secrets, not from workflow inputs.
+
+### Optional push (GitHub API)
+
+After the artifact upload step, **`push_via_github_api.py`** runs with **`if: always()`**, so it still runs when `url2md.py` exits **`1`** because some URLs failed.
+
+- **When it pushes:** at least one URL has `"status": "success"` in **`result.json`**.
+- **What it pushes:** **`result.json`** and **only** the `.md` files for those successful URLs (same filenames as `url2md.py`, via `output_naming.url_to_filename`). Failed URLs’ `.md` files are **not** uploaded.
+- **Job status:** If any URL failed, the workflow job is still marked **failed**, but successful files can still be pushed.
+- **Remote updates:** The commit **adds or updates** the listed paths; it does **not** delete other files already under `target_path` from earlier runs.
 
 ### Artifacts (workflow upload)
 
@@ -156,15 +184,20 @@ After `url2md.py` writes **`<output_dir>.zip`** and **`result.json`**, the workf
 
 For **on-demand conversion** triggered by `workflow_dispatch`, **workflow artifacts are the better default**: simple, no release noise, good enough for “grab this run’s zip.” Use **Releases** only if you need permanent, versioned downloads for end users.
 
-Local runs do **not** upload to GitHub; only the workflow does.
+Local runs do **not** upload to GitHub or push to another repo unless you run **`push_via_github_api.py`** yourself with the right environment variables.
 
 ### Example (`gh` CLI)
 
 ```bash
 gh workflow run convert.yml \
   -f papers='{"papers":["https://httpbin.org/html","https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf"]}' \
-  -f output_dir=converted
+  -f output_dir=converted \
+  -f target_repo='myorg/my-docs' \
+  -f target_path='imported/papers' \
+  -f target_branch='main'
 ```
+
+Omit `target_*` fields to rely on repository secrets **`TARGET_REPO`**, **`TARGET_PATH`**, and **`TARGET_BRANCH`** instead (still requires **`TARGET_REPO_TOKEN`** for push).
 
 ---
 

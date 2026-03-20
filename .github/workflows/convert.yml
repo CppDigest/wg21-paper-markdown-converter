@@ -17,6 +17,21 @@ on:
         required: false
         default: openai/gpt-4o
         type: string
+      target_repo:
+        description: "Destination owner/repo (optional; falls back to secret TARGET_REPO)"
+        required: false
+        default: ""
+        type: string
+      target_path:
+        description: "Path inside destination repo (optional; falls back to secret TARGET_PATH)"
+        required: false
+        default: ""
+        type: string
+      target_branch:
+        description: "Branch on destination repo (optional; falls back to secret TARGET_BRANCH or main)"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   convert:
@@ -41,6 +56,7 @@ jobs:
 
       # Writes *.md under output_dir, then output_dir.zip and result.json in the workspace root.
       - name: Convert URLs to Markdown
+        id: convert
         run: |
           python url2md.py \
             --papers '${{ inputs.papers }}' \
@@ -60,3 +76,14 @@ jobs:
             result.json
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Push successful outputs to target repository (GitHub API)
+        if: always()
+        run: python push_via_github_api.py
+        env:
+          TARGET_REPO: ${{ inputs.target_repo != '' && inputs.target_repo || secrets.TARGET_REPO }}
+          TARGET_PATH: ${{ inputs.target_path != '' && inputs.target_path || secrets.TARGET_PATH }}
+          TARGET_BRANCH: ${{ inputs.target_branch != '' && inputs.target_branch || secrets.TARGET_BRANCH || 'main' }}
+          TARGET_REPO_TOKEN: ${{ secrets.TARGET_REPO_TOKEN }}
+          OUTPUT_DIR: ${{ inputs.output_dir }}
+          GITHUB_RUN_ID: ${{ github.run_id }}

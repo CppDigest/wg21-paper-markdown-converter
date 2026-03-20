@@ -8,10 +8,10 @@ the output folder.
 Designed to be called by the GitHub Actions workflow_dispatch job, but
 also runnable locally.
 
-On GitHub Actions, after this script finishes, ``.github/workflows/convert.yml``
-uploads ``<output-dir>.zip`` and ``result.json`` as a single workflow artifact
-(see the "Upload zip and result.json" step). Local runs do not upload anywhere
-unless you add your own tooling.
+On GitHub Actions, ``.github/workflows/convert.yml`` uploads ``<output-dir>.zip``
+and ``result.json`` as an artifact, then optionally pushes successful ``.md``
+files plus ``result.json`` to another repository via the GitHub API when
+``TARGET_REPO`` and ``TARGET_REPO_TOKEN`` are configured.
 """
 
 import argparse
@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 
 import html_converter
 import pdf_converter
+from output_naming import url_to_filename
 
 load_dotenv()
 
@@ -51,17 +52,6 @@ def detect_type(url: str) -> str:
         pass
 
     return "html"
-
-
-# ── output naming ─────────────────────────────────────────────────────────────
-
-def url_to_filename(url: str) -> str:
-    """Derive a safe .md filename from the URL path stem."""
-    parsed = urlparse(url)
-    stem = Path(parsed.path).stem or "index"
-    # Replace characters that are unsafe in filenames
-    safe = "".join(c if (c.isalnum() or c in "-_.") else "_" for c in stem)
-    return safe + ".md"
 
 
 # ── zip helper ────────────────────────────────────────────────────────────────
